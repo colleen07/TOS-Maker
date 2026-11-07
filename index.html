@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Build Your TOS: Live</title>
+<style>
+:root{--bg:#fff;--card:#eef4f0;--ink:#1b422d;--mut:#5a6b61;--g:#016737;--g3:#377957;--or:#ff9900;--line:#cfdcd3;--ok:#d9f0e1;--bad:#fde3d4;--in:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1f17;--card:#1a2f23;--ink:#e8f1ea;--mut:#9db3a5;--g:#4cc27f;--g3:#6fd09a;--line:#2f4a3a;--ok:#1e4a30;--bad:#5a3317;--in:#12251b}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0f1f17;--card:#1a2f23;--ink:#e8f1ea;--mut:#9db3a5;--g:#4cc27f;--g3:#6fd09a;--line:#2f4a3a;--ok:#1e4a30;--bad:#5a3317;--in:#12251b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1,h2{font-family:Georgia,"Times New Roman",serif;margin:.2em 0}
+h1{font-size:26px}h2{font-size:21px}
+.sub{color:var(--mut);margin:0 0 12px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:6px 0 10px}
+.tab{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+.tab.on{background:var(--g);color:#fff;border-color:var(--g)}
+.tab.lock{opacity:.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th{background:var(--g);color:#fff;text-align:left;padding:8px;font-size:14px}
+td{padding:6px 8px;border-bottom:1px solid var(--line);font-size:15px;vertical-align:middle}
+tr.tot td{background:#e9d08a;color:#1b422d;font-weight:700}
+input,select,textarea,button{font:inherit;color:var(--ink)}
+input,select,textarea{background:var(--in);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+input[type=number]{width:72px}
+textarea{width:100%;min-height:120px}
+.btn{background:var(--or);color:#1b422d;border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer}
+.btn.alt{background:transparent;border:1px solid var(--g);color:var(--g)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;background:var(--g3);color:#fff}
+.ok{background:var(--ok)}.bad{background:var(--bad)}
+.chk{display:flex;gap:10px;align-items:flex-start;border-radius:12px;padding:10px 12px;margin:8px 0}
+.mut{color:var(--mut);font-size:14px}
+.big{font-size:40px}
+.pres{border:2px dashed var(--or)}
+code{background:var(--in);padding:1px 6px;border-radius:6px}
+</style></head><body><main id="app"></main>
+<script>
+const LV=['Remembering','Understanding','Applying','Analyzing','Evaluating','Creating'],AB=['Rem','Und','App','Ana','Eva','Cre'];
+const GR=[[0,1],[2,3],[4,5]],GN=['Easy','Average','Difficult'],GL=['Remembering + Understanding','Applying + Analyzing','Evaluating + Creating'];
+const CODES={2:'HOURS',3:'LEVELS',4:'PLACE',5:'CHECK'};
+const TITLES=['List the competencies','Weigh the lessons','Split by difficulty','Place the items','Check your totals'];
+let S={n:30,rows:[],hours:{},items:{},split:[30,50,20],noi:{},unlocked:1,step:1,paste:''};
+try{Object.assign(S,JSON.parse(localStorage.getItem('tos-live')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('tos-live',JSON.stringify(S))}catch(e){}};
+let owner=false,room=null,msg='';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function alloc(total,w){const s=w.reduce((a,b)=>a+b,0);if(!s)return w.map(()=>0);const raw=w.map(x=>x/s*total),f=raw.map(Math.floor);let left=total-f.reduce((a,b)=>a+b,0);raw.map((r,i)=>[r-f[i],i]).sort((a,b)=>b[0]-a[0]).slice(0,left).forEach(([,i])=>f[i]++);return f}
+const lessons=()=>[...new Set(S.rows.map(r=>r.lesson))];
+const lItems=()=>{const L=lessons(),a=alloc(S.n,L.map(l=>+S.hours[l]||0)),o={};L.forEach((l,i)=>o[l]=(S.items[l]===undefined||S.items[l]==='')?a[i]:+S.items[l]);return o};
+const targets=()=>alloc(S.n,S.split.map(x=>+x||0));
+const noi=(i,k)=>+((S.noi[i]||[])[k])||0;
+const rowTot=i=>[0,1,2,3,4,5].reduce((a,k)=>a+noi(i,k),0);
+const inp=(a,i,k,v,x='')=>`<input id="in-${a}-${i}-${k}" data-a="${a}" data-i="${i}" data-k="${k}" value="${esc(v)}" ${x}>`;
+const num=(a,i,k,v,ph='')=>inp(a,i,k,v,`type="number" min="0" inputmode="numeric" placeholder="${ph}"`);
+const locked=n=>!owner&&n>S.unlocked;
+function s1(){const r=S.rows;return `<div class=card><div class=row><label>Total items in your test <input id="in-n-0-0" data-a="n" type="number" min="1" inputmode="numeric" value="${S.n}"></label></div></div>
+<div class=card><b>Paste your competencies</b><p class=mut>One per line. Optional: put the lesson first, then a tab or “|” (for example <code>Lesson 1 | Solve problems…</code>). Copying two columns from Excel works too.</p>
+<textarea id="paste" data-a="paste" placeholder="Paste here…">${esc(S.paste)}</textarea><div class=row style="margin-top:8px"><button class=btn data-a="add">Add to table</button><button class="btn alt" data-a="clear">Clear all</button></div></div>
+${r.length?`<div class="card wrap"><table><tr><th>#</th><th>Lesson</th><th>Competency</th><th>Bloom’s level</th><th></th></tr>${r.map((x,i)=>`<tr><td>${i+1}</td><td>${inp('lesson',i,0,x.lesson,'style="width:110px"')}</td><td>${esc(x.text)}</td><td><select id="in-lvl-${i}-0" data-a="lvl" data-i="${i}"><option value="">Level…</option>${LV.map(l=>`<option ${x.level==l?'selected':''}>${l}</option>`).join('')}</select></td><td><button class="tab" data-a="del" data-i="${i}">✕</button></td></tr>`).join('')}</table></div><p class=mut>${r.filter(x=>x.level).length} of ${r.length} tagged with a Bloom’s level.</p>`:''}`}
+function s2(){if(!S.rows.length)return need();const L=lessons(),a=lItems(),H=L.reduce((t,l)=>t+(+S.hours[l]||0),0),auto=alloc(S.n,L.map(l=>+S.hours[l]||0)),sum=L.reduce((t,l)=>t+a[l],0);
+return `<div class="card wrap"><table><tr><th>Lesson</th><th>Hours</th><th>% of time</th><th>Raw items</th><th>Actual items</th></tr>${L.map((l,i)=>{const h=+S.hours[l]||0;return `<tr><td>${esc(l)}</td><td>${num('hrs',i,0,S.hours[l]??'')}</td><td>${H?(h/H*100).toFixed(1):'0.0'}%</td><td>${H?(h/H*S.n).toFixed(2):'0.00'}</td><td>${num('itm',i,0,S.items[l]??'',auto[i])}</td></tr>`}).join('')}<tr class=tot><td>Total</td><td>${H}</td><td>${H?'100%':'0%'}</td><td>${H?S.n.toFixed(2):'0.00'}</td><td>${sum}</td></tr></table></div>
+<p class="pill ${sum==S.n?'':'bad'}" style="${sum==S.n?'':'color:inherit'}">${sum==S.n?'✓ Items add up to '+S.n:'Items add up to '+sum+', need '+S.n}</p>
+<p class=mut>% of time = hours ÷ total hours · Items = % × total items. The “Actual items” box fills itself in by rounding; change it if your department rounds differently, then make sure the total is exactly ${S.n}.</p>`}
+function s3(){const t=targets(),sp=S.split.reduce((a,b)=>a+(+b||0),0);
+return `<div class="card wrap"><table><tr><th>Difficulty</th><th>Bloom’s levels</th><th>% of test</th><th>Target items</th></tr>${GN.map((g,j)=>`<tr><td><b>${g}</b></td><td>${GL[j]}</td><td>${num('spl',j,0,S.split[j])}</td><td><b>${t[j]}</b></td></tr>`).join('')}<tr class=tot><td>Total</td><td></td><td>${sp}%</td><td>${t.reduce((a,b)=>a+b,0)}</td></tr></table></div>
+<p class="pill ${sp==100?'':'bad'}" style="${sp==100?'':'color:inherit'}">${sp==100?'✓ 100%':'Percentages add up to '+sp+'%, need 100%'}</p><p class=mut>Default is 30 · 50 · 20. Follow your department’s split if it’s different.</p>`}
+function poi(){let c=0;return S.rows.map((_,i)=>{const p=[];for(let k=0;k<6;k++){const v=noi(i,k);if(v){p.push(AB[k]+' '+(v>1?(c+1)+'–'+(c+v):(c+1)));c+=v}}return p.join(' · ')||'–'})}
+function s4(){if(!S.rows.length)return need();const L=lessons(),a=lItems(),P=poi();
+const ch=L.map(l=>{const got=S.rows.reduce((t,r,i)=>t+(r.lesson==l?rowTot(i):0),0);return `<span class="pill ${got==a[l]?'':'bad'}" style="${got==a[l]?'':'color:inherit'}">${esc(l)}: ${got}/${a[l]}</span>`}).join(' ');
+return `<div class=card>${ch}<p class=mut>Type how many items go in each level. The chips show items placed vs. items the lesson needs. NOI = number of items, POI = placement of items (item numbers).</p></div>
+<div class="card wrap"><table style="min-width:820px"><tr><th>Competency</th>${AB.map(x=>`<th>${x}</th>`).join('')}<th>Total</th><th>POI</th></tr>${S.rows.map((r,i)=>`<tr><td style="max-width:240px"><span class=mut>${esc(r.lesson)}</span><br>${esc(r.text)}</td>${[0,1,2,3,4,5].map(k=>`<td>${num('noi',i,k,S.noi[i]?.[k]??'')}</td>`).join('')}<td><b>${rowTot(i)}</b></td><td class=mut>${P[i]}</td></tr>`).join('')}</table></div>`}
+function s5(){if(!S.rows.length)return need();const L=lessons(),a=lItems(),t=targets();
+const lv=k=>S.rows.reduce((s,_,i)=>s+noi(i,k),0),gr=GR.map(g=>lv(g[0])+lv(g[1])),tot=gr.reduce((x,y)=>x+y,0);
+const c=[[L.every(l=>S.rows.reduce((s,r,i)=>s+(r.lesson==l?rowTot(i):0),0)==a[l]),'Rows add up to each lesson’s items'],
+[gr.every((x,j)=>x==t[j]),`Columns match the targets (${t.join(' · ')}). You have ${gr.join(' · ')}`],
+[tot==S.n,`Grand total is ${S.n} items. You have ${tot}`],
+[S.rows.every((_,i)=>rowTot(i)>0),'Every competency has at least one item']];
+return `${c.map(([ok,tx])=>`<div class="chk ${ok?'ok':'bad'}"><span class=big style="font-size:24px">${ok?'✓':'✗'}</span><div>${tx}</div></div>`).join('')}
+<div class="card wrap"><table><tr><th></th>${AB.map(x=>`<th>${x}</th>`).join('')}<th>Total</th></tr><tr><td><b>Actual items</b></td>${[0,1,2,3,4,5].map(k=>`<td>${lv(k)}</td>`).join('')}<td><b>${tot}</b></td></tr></table></div>
+<div class=row><button class=btn data-a="copy">Copy my TOS as a table</button></div><p class=mut>${esc(msg)}</p><textarea id="out" style="display:none" readonly></textarea>
+<div class=card><b>All checks passed?</b> Save a screenshot or paste your copied table into the Excel template, name it <code>Surname_TOS</code>, and submit it through the OneDrive link in the chat.</div>`}
+const need=()=>`<div class=card>Add your competencies in Step 1 first.</div>`;
+function tsv(){const P=poi(),a=lItems();return ['Lesson\tCompetency\tBloom’s level\t'+LV.join('\t')+'\tTotal\tPOI',...S.rows.map((r,i)=>[r.lesson,r.text,r.level,...[0,1,2,3,4,5].map(k=>noi(i,k)),rowTot(i),P[i]].join('\t'))].join('\n')}
+function lockView(n){return `<div class=card><h2>🔒 Step ${n} is locked</h2><p>Hang tight. Type the code the presenter shares in the chat to open this step.</p><div class=row><input id="code" placeholder="Code" autocomplete="off" style="text-transform:uppercase"><button class=btn data-a="unlock" data-i="${n}">Unlock</button></div><p class=mut>${esc(msg)}</p></div>`}
+function presenter(){return `<div class="card pres"><b>Presenter view</b><p class=mut>Say each code in the chat when you finish demoing that step. Your own view shows every step.</p><div class=row>${[2,3,4,5].map(n=>`<span class=pill>Step ${n}: ${CODES[n]}</span>`).join('')}</div></div>`}
+function render(){const ae=document.activeElement,id=ae&&ae.id,pos=ae&&ae.selectionStart;
+const st=S.step,body=locked(st)?lockView(st):[s1,s2,s3,s4,s5][st-1]();
+document.getElementById('app').innerHTML=`<h1>Build your TOS</h1><p class=sub>Follow along with the presenter, one step at a time.</p>${owner?presenter():''}
+<div class=tabs>${TITLES.map((t,i)=>`<button class="tab ${st==i+1?'on':''} ${locked(i+1)?'lock':''}" data-a="go" data-i="${i+1}">${locked(i+1)?'🔒':i+1} ${t}</button>`).join('')}</div><h2>Step ${st}: ${TITLES[st-1]}</h2>${body}`;
+if(id){const el=document.getElementById(id);if(el){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}}
+function unlockTo(n,reset){S.unlocked=reset?1:Math.max(S.unlocked,n);if(reset&&S.step>1)S.step=1;save();render()}
+document.addEventListener('input',e=>{const t=e.target,a=t.dataset.a,i=+t.dataset.i,k=+t.dataset.k;if(!a)return;
+if(a=='paste'){S.paste=t.value;save();return}
+if(a=='n')S.n=Math.max(1,Math.floor(+t.value)||1);
+if(a=='lesson'){const old=S.rows[i].lesson;S.rows[i].lesson=t.value||'Lesson'}
+if(a=='lvl')S.rows[i].level=t.value;
+if(a=='hrs')S.hours[lessons()[i]]=t.value;
+if(a=='itm')S.items[lessons()[i]]=t.value;
+if(a=='spl')S.split[i]=t.value;
+if(a=='noi'){(S.noi[i]=S.noi[i]||[0,0,0,0,0,0])[k]=Math.max(0,Math.floor(+t.value)||0)}
+save();render()});
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.dataset.a)return;const a=b.dataset.a,i=+b.dataset.i;msg='';
+if(a=='go'){S.step=i;save()}
+if(a=='add'){const ls=S.paste.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);ls.forEach(x=>{const p=x.split(/\t|\|/).map(y=>y.trim()).filter(Boolean);S.rows.push(p.length>1?{lesson:p[0],text:p.slice(1).join(' '),level:''}:{lesson:'Lesson 1',text:p[0],level:''})});S.paste='';S.noi={}}
+if(a=='clear'){S.rows=[];S.hours={};S.items={};S.noi={};S.paste=''}
+if(a=='del'){S.rows.splice(i,1);S.noi={}}
+if(a=='unlock'){const v=(document.getElementById('code').value||'').trim().toUpperCase();if(v&&Object.entries(CODES).some(([n,c])=>c==v&&+n>S.unlocked&&+n<=i)||(v&&Object.entries(CODES).some(([n,c])=>c==v&&+n<=i))){const hit=+Object.keys(CODES).find(n=>CODES[n]==v);S.unlocked=Math.max(S.unlocked,hit)}else msg='That code didn’t work. Check the chat.'}
+if(a=='open'){S.unlocked=Math.max(S.unlocked,i);}
+if(a=='relock'){S.unlocked=1;S.step=1;}
+if(a=='copy'){const x=tsv();let done=false;try{navigator.clipboard.writeText(x).then(()=>{msg='Copied! Paste it into Excel.';render()},()=>{});done=true}catch(_){}
+if(!done){const o=document.getElementById('out');o.style.display='block';o.value=x;o.select();msg='Select all and copy the text below.'}}
+save();render()});
+owner=location.hash=='#presenter';addEventListener('hashchange',()=>{owner=location.hash=='#presenter';render()});render();
+</script></body></html>
